@@ -301,7 +301,7 @@ In addition to ``text_align()`` and ``text_width()``, Processing also offers the
 Rotating text
 =============
 
-Translation and rotation can also be applied to text. For example, to rotate text around its center, translate to an origin point and use textAlign(CENTER) before displaying the text.
+Translation and rotation can also be applied to text. For example, to rotate text around its center, translate to an origin point and use ``text_align("CENTER")`` before displaying the text.
 
 .. code:: python
 
