@@ -208,7 +208,7 @@ Let's look at two more useful Processing functions related to displaying text:
 
 ``text_width()``- Calculates and returns the width of any character or text string.
 
-Let's say we want to create a news ticker, where text scrolls across the bottom of the screen from left to right. When the news headline leaves the window, it reappears on the right hand side and scrolls again. If we know the x location of the beginning of the text and we know the width of that text, we can determine when it is no longer in view. textWidth() gives us that width.
+Let's say we want to create a news ticker, where text scrolls across the bottom of the screen from left to right. When the news headline leaves the window, it reappears on the right hand side and scrolls again. If we know the x location of the beginning of the text and we know the width of that text, we can determine when it is no longer in view. ``text_width()`` gives us that width.
 
 To start, we declare headline, font, and x location variables, initializing them in setup().
 
