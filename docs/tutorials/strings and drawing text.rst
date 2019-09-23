@@ -148,7 +148,8 @@ This function is just like shape or image drawing, it takes three arguments—th
 	f = None # STEP 1 Declare PFont variable
 
 	def setup():
-		size(200,200)
+        global f
+        size(200,200)
 		f = create_font("Arial", 16) # STEP 2 Create Font
 
 	def draw():
