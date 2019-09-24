@@ -489,7 +489,7 @@ This "letter by letter" methodology can also be applied to a sketch where charac
 	if __name__ == '__main__':
 		run()
 
-The character by character method also allows us to display text along a curve. Before we move on to letters, let's first look at how we would draw a series of boxes along a curve. This example makes heavy use of Trignometry.
+The character by character method also allows us to display text along a curve. Before we move on to letters, let's first look at how we would draw a series of boxes along a curve. This example makes heavy use of Trigonometry.
 
 .. image:: ./strings_and_drawing_text-res/boxes.jpg
    :align: center
