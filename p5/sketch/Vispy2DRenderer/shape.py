@@ -22,47 +22,60 @@ import contextlib
 import functools
 
 import numpy as np
-import triangle as tr
+import math
 
-from .color import Color
-from ..pmath import matrix
-
-from . import p5
-
+from p5.core.color import Color
+from p5.core.constants import SType
+from p5.pmath import matrix
+from p5.pmath.vector import Point
+from p5.pmath.utils import SINCOS
+from p5.core import p5
 
 __all__ = ['PShape']
+
 
 def _ensure_editable(func):
     """A decorater that ensures that a shape is in 'edit' mode.
 
     """
+
     @functools.wraps(func)
     def editable_method(instance, *args, **kwargs):
         if not instance._in_edit_mode:
-            raise ValueError('{} only works in edit mode'.format(func.__name__))
+            raise ValueError(
+                '{} only works in edit mode'.format(
+                    func.__name__))
         return func(instance, *args, **kwargs)
+
     return editable_method
+
 
 def _apply_transform(func):
     """Apply the matrix transformation to the shape.
     """
+
     @functools.wraps(func)
     def mfunc(instance, *args, **kwargs):
         tmat = func(instance, *args, **kwargs)
         instance._matrix = instance._matrix.dot(tmat)
         return tmat
+
     return mfunc
+
 
 def _call_on_children(func):
     """Call the method on all child shapes
     """
+
     @functools.wraps(func)
     def rfunc(instance, *args, **kwargs):
         rval = func(instance, *args, **kwargs)
         for child in instance.children:
             rfunc(child, *args, **kwargs)
         return rval
+
     return rfunc
+
 
 class PShape:
     """Custom shape class for p5.
@@ -81,29 +94,18 @@ class PShape:
     :param visible: toggles shape visibility (default: False)
     :type visible: bool
 
-    :param attribs: space-separated list of attributes that control
-        shape drawing. Each attribute should be one of {'point',
-        'path', 'open', 'closed'}. (default: 'closed')
-    :type attribs: str
-
     :param children: List of sub-shapes for the current shape
         (default: [])
     :type children: list
 
     """
-    def __init__(self, vertices=[], fill_color='auto',
-                 stroke_color='auto', stroke_weight="auto", 
-                 stroke_join="auto", stroke_cap="auto", 
-                 visible=False, attribs='closed',
-                 children=None, contour=None):
-        # basic properties of the shape
-        self._vertices = np.array([])
-        self.contour = contour or np.array([])
-        self._edges = None
-        self._outline = None
-        self._outline_vertices = None
 
-        self.attribs = set(attribs.lower().split())
+    def __init__(self, fill_color='auto',
+                 stroke_color='auto', stroke_weight="auto",
+                 stroke_join="auto", stroke_cap="auto",
+                 visible=False,
+                 children=None, contours=tuple(), vertices=tuple(), shape_type=SType.TESS):
+        # basic properties of the shape
         self._fill = None
         self._stroke = None
         self._stroke_weight = None
@@ -116,18 +118,6 @@ class PShape:
 
         # a flag to check if the shape is being edited right now.
         self._in_edit_mode = False
-        self._vertex_cache = None
-
-        # The triangulation used to render the shapes.
-        self._tri = None
-        self._tri_required = not ('point' in self.attribs) and \
-                             not ('path' in self.attribs)
-        self._tri_vertices = None
-        self._tri_edges = None
-        self._tri_faces = None
-
-        if len(vertices) > 0:
-            self.vertices = vertices
 
         self.fill = fill_color
         self.stroke = stroke_color
@@ -138,17 +128,21 @@ class PShape:
         self.children = children or []
         self.visible = visible
 
+        self.vertices = list(vertices)
+        self.shape_type = shape_type
+        self.contours = [list(c) for c in contours]  # List of all contours
+
     def _set_color(self, name, value=None):
         color = None
 
-        if isinstance(value, Color):
+        if isinstance(value, Color):  # Is Color, no need to parse
             color = value
-        else:
-            if name == 'stroke' and p5.renderer.stroke_enabled:
-                color = Color(*p5.renderer.stroke_color,
+        else:  # Not Color, attempt to parse it
+            if name == 'stroke' and p5.renderer.style.stroke_enabled:
+                color = Color(*p5.renderer.style.stroke_color,
                               color_mode='RGBA', normed=True)
-            if name == 'fill' and p5.renderer.fill_enabled:
-                color = Color(*p5.renderer.fill_color,
+            if name == 'fill' and p5.renderer.style.fill_enabled:
+                color = Color(*p5.renderer.style.fill_color,
                               color_mode='RGBA', normed=True)
 
         if name == 'stroke':
@@ -205,184 +199,6 @@ class PShape:
         else:
             self._stroke_cap = stroke
 
-    @property
-    def kind(self):
-        if 'point' in self.attribs:
-            return 'point'
-        elif 'path' in self.attribs:
-            return 'path'
-        else:
-            return 'poly'
-
-    def _sanitize_vertex_list(self, vertices, tdim=2, sdim=3):
-        """Convert all vertices to the given dimensions.
-        Removes consecutive duplicates to prevent errors in triangulation.
-
-        :param vertices: List of vertices
-        :type vertices: list
-
-        :param tdim: Target dimension for sanitization (default: 3)
-        :type tdim: int
-
-        :param sdim: Source dimension for the points (default: 2).
-            Whenever sdim > tdim, the last (sdim - tdim) components will
-            be discarded.
-        :type sdim: int
-
-        :raises ValueError: when the point dimension is between sdim and tdim
-
-        :returns: A sanitized array of vertices.
-        :type: np.ndarray
-
-        """
-        sanitized = []
-        for i in range(len(vertices)):
-            if i < len(vertices) - 1:
-                if vertices[i] == vertices[i + 1]:
-                    continue
-            elif i == len(vertices) - 1 and i != 0:
-                if vertices[i] == vertices[0]:
-                    continue
-
-            v = vertices[i]
-            if (len(v) > max(tdim, sdim)) or (len(v) < min(tdim, sdim)):
-                raise ValueError("unexpected vertex dimension")
-
-            if tdim > sdim:
-                sanitized.append(list(v) + [0] * (tdim - sdim))
-            elif tdim < sdim:
-                sanitized.append(list(v)[:tdim])
-            else:
-                sanitized.append(list(v))
-
-        return np.array(sanitized)
-
-    @property
-    def vertices(self):
-        return self._vertices
-
-    @vertices.setter
-    def vertices(self, new_vertices):
-        self._vertices = self._sanitize_vertex_list(new_vertices)
-
-        n = len(self._vertices)
-        self._outline_vertices = np.hstack([self._vertices, np.zeros((n, 1))])
-        self._tri_vertices = None
-        self._tri_edges = None
-        self._tri_faces = None
-
-    def _compute_poly_edges(self):
-        n, _ = self._vertices.shape
-        return np.vstack([np.arange(n), (np.arange(n) + 1) % n]).transpose()
-
-    def _compute_outline_edges(self):
-        n, _ = self._vertices.shape
-        return np.vstack([np.arange(n - 1),
-                          (np.arange(n - 1) + 1) % n]).transpose()
-
-    @property
-    def edges(self):
-        if 'point' in self.attribs:
-            return np.array([])
-
-        if self._edges is None:
-            n, _ = self._vertices.shape
-
-            if 'point' in self.attribs:
-                self._edges = np.array([])
-            elif 'path' in self.attribs:
-                self._edges = self._compute_outline_edges()
-            else:
-                self._edges = self._compute_poly_edges()
-
-            if 'open' in self.attribs:
-                self._outline = self._compute_outline_edges()
-            else:
-                self._outline = self._edges
-
-        return self._edges
-
-    def get_interior_point(self, shape_vertices):
-        # Returns a random point inside the shape
-        if len(shape_vertices) < 2:
-            return []
-
-        # Triangulate the shape
-        triangulate = tr.triangulate(dict(vertices=shape_vertices), "a5")
-        for vertex in triangulate["vertices"]:
-            if vertex not in shape_vertices:
-                return [vertex]
-
-        return []
-
-    def _retriangulate(self):
-        """Triangulate the shape
-        """
-        if len(self.vertices) < 2:
-            self._tri_edges = np.array([])
-            self._tri_faces = np.array([])
-            self._tri_vertices = self.vertices
-            return
-
-        if len(self.contour) > 1:
-            n, _ = self.contour.shape
-            contour_edges = np.vstack([np.arange(n), (np.arange(n) + 1) % n]).transpose()
-            triangulation_vertices = np.vstack([self.vertices, self.contour])
-            triangulation_segments = np.vstack([self.edges, contour_edges + len(self.edges)])
-            triangulate_parameters = dict(vertices=triangulation_vertices, 
-                segments=triangulation_segments, holes=self.get_interior_point(self.contour))
-
-            self._tri = tr.triangulate(triangulate_parameters, "p")
-        else:
-            triangulate_parameters = dict(vertices=self.vertices, segments=self.edges)
-            self._tri = tr.triangulate(triangulate_parameters, "p")
-
-        if "segments" in self._tri.keys():
-            self._tri_edges = self._tri["segments"]
-        else:
-            self._tri_edges = self.edges
-
-        self._tri_faces = self._tri["triangles"]
-        self._tri_vertices = self._tri["vertices"]
-
-    @property
-    def _draw_outline_vertices(self):
-        if 'open' in self.attribs:
-            return self._draw_vertices
-        return self.vertices
-
-    @property
-    def _draw_outline_edges(self):
-        if 'open' in self.attribs:
-            return self._outline
-        return self._edges
-
-    @property
-    def _draw_vertices(self):
-        if self._tri_required and (self._tri_vertices is None):
-            self._retriangulate()
-
-        if self._tri_required:
-            return self._tri_vertices
-        return self._vertices
-
-    @property
-    def _draw_edges(self):
-        if self._tri_required:
-            if self._tri_edges is None:
-                self._retriangulate()
-            return self._tri_edges
-        return self.edges
-
-    @property
-    def _draw_faces(self):
-        if self._tri_required:
-            if self._tri_faces is None:
-                self._retriangulate()
-            return self._tri_faces
-
-        return np.array([])
-
     @contextlib.contextmanager
     def edit(self, reset=True):
         """Put the shape in edit mode.
@@ -399,15 +215,12 @@ class PShape:
         """
         if self._in_edit_mode:
             raise ValueError("Shape is being edited already")
-
-        self._in_edit_mode = True
         if reset:
-            self._vertices = np.array([])
-        self._vertex_cache = []
+            self.vertices = []
+            self.contours = []
+        self._in_edit_mode = True
         yield
-        self.vertices = self._vertex_cache
         self._in_edit_mode = False
-        self._edges = None
 
     @_ensure_editable
     def add_vertex(self, vertex):
@@ -415,29 +228,20 @@ class PShape:
 
         :param vertex: The (next) vertex to add to the current shape.
         :type vertex: tuple | list | p5.Vector | np.ndarray
-
-        :raises ValueError:  when the vertex is of the wrong dimension
         """
-        self._vertex_cache.append(vertex)
+        self.vertices.append(Point(*vertex))
 
+    @_ensure_editable
     def update_vertex(self, idx, vertex):
-        """Edit an indicidual vertex.
+        """Edit an individual vertex.
 
         :param idx: index of the vertex to be edited
         :type idx: int
 
         :param vertex: The (next) vertex to add to the current shape.
         :type vertex: tuple | list | p5.Vector | np.ndarray
-
-        :raises ValueError:  when the vertex is of the wrong dimension
         """
-        if len(vertex) != 2:
-            raise ValueError("Wrong vertex dimension")
-        self._vertices[idx] =  np.array(vertex)
-        self._tri_vertices = None
-        self._tri_edges = None
-        self._tri_faces = None
-        self._edges = None
+        self.vertices[idx] = Point(*vertex)
 
     def add_child(self, child):
         """Add a child shape to the current shape
@@ -507,7 +311,7 @@ class PShape:
 
     @_call_on_children
     @_apply_transform
-    def rotate(self, theta, axis=[0, 0, 1]):
+    def rotate(self, theta, axis=(0, 0, 1)):
         """Rotate the shape by the given angle along the given axis.
 
         :param theta: The angle by which to rotate (in radians)
@@ -584,10 +388,10 @@ class PShape:
         :rtype: np.ndarray
 
         """
-        if (not sy) and (not sz):
+        if sy is None and sz is None:
             sy = sx
             sz = sx
-        elif not sz:
+        elif sz is None:
             sz = 1
         tmat = matrix.scale_transform(sx, sy, sz)
         return tmat
@@ -624,3 +428,86 @@ class PShape:
         shear_mat[1, 0] = np.tan(theta)
         return shear_mat
 
+
+# We use these in ellipse tessellation. The algorithm is similar to
+# the one used in Processing and the we compute the number of
+# subdivisions per ellipse using the following formula:
+#
+#    min(M, max(N, (2 * pi * size / F)))
+#
+# Where,
+#
+# - size :: is the measure of the dimensions of the circle when
+#   projected in screen coordiantes.
+#
+# - F :: sets the minimum number of subdivisions. A smaller `F` would
+#   produce more detailed circles (== POINT_ACCURACY_FACTOR)
+#
+# - N :: Minimum point accuracy (== MIN_POINT_ACCURACY)
+#
+# - M :: Maximum point accuracy (== MAX_POINT_ACCURACY)
+#
+MIN_POINT_ACCURACY = 20
+MAX_POINT_ACCURACY = 200
+POINT_ACCURACY_FACTOR = 10
+
+
+class Arc(PShape):
+    def __init__(self, center, radii, start_angle, stop_angle,
+                 mode=None, fill_color='auto',
+                 stroke_color='auto', stroke_weight="auto",
+                 stroke_join="auto", stroke_cap="auto", **kwargs):
+        self._center = center
+        self._radii = radii
+        self._start_angle = start_angle
+        self._stop_angle = stop_angle
+        self.arc_mode = mode
+
+        gl_type = SType.TESS if mode in [
+            'OPEN', 'CHORD'] else SType.TRIANGLE_FAN
+        super().__init__(fill_color=fill_color,
+                         stroke_color=stroke_color, stroke_weight=stroke_weight,
+                         stroke_join=stroke_join, stroke_cap=stroke_cap, shape_type=gl_type, **kwargs)
+        self._tessellate()
+
+    def _tessellate(self):
+        """Generate vertex and face data using radii.
+        """
+        rx = self._radii[0]
+        ry = self._radii[1]
+
+        c1x = self._center[0]
+        c1y = self._center[1]
+        s1 = p5.renderer.transform_matrix.dot(np.array([c1x, c1y, 0, 1]))
+
+        c2x = c1x + rx
+        c2y = c1y + ry
+        s2 = p5.renderer.transform_matrix.dot(np.array([c2x, c2y, 0, 1]))
+
+        sdiff = (s2 - s1)
+        size_acc = (np.sqrt(np.sum(sdiff * sdiff)) *
+                    math.pi * 2) / POINT_ACCURACY_FACTOR
+
+        acc = min(MAX_POINT_ACCURACY, max(MIN_POINT_ACCURACY, int(size_acc)))
+        inc = int(len(SINCOS) / acc)
+
+        sclen = len(SINCOS)
+        start_index = int((self._start_angle / (math.pi * 2)) * sclen)
+        end_index = int((self._stop_angle / (math.pi * 2)) * sclen)
+
+        vertices = [(c1x, c1y, 0)] if self.arc_mode in ['PIE', None] else []
+        for idx in range(start_index, end_index, inc):
+            i = idx % sclen
+            vertices.append((
+                c1x + rx * SINCOS[i][1],
+                c1y + ry * SINCOS[i][0],
+                0
+            ))
+        vertices.append((
+            c1x + rx * SINCOS[end_index % sclen][1],
+            c1y + ry * SINCOS[end_index % sclen][0],
+            0
+        ))
+        if self.arc_mode == 'CHORD' or self.arc_mode == 'PIE':
+            vertices.append(vertices[0])
+        self.vertices = vertices

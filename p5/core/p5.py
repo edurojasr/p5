@@ -18,7 +18,9 @@
 
 """Environment Variables for P5 sketches"""
 
+from .tess import Tessellator
+
 sketch = None
 renderer = None
-
-
+mode = None
+tess = Tessellator()

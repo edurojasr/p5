@@ -56,7 +56,7 @@ A ``point()`` is the easiest of the shapes and a good place to start. To draw a 
 	:align: center
 	:width: 50%
 
-A ``line()``isn't terribly difficult either and simply requires two points: (x1,y1) and (x2,y2): 
+A ``line()`` isn't terribly difficult either and simply requires two points: (x1,y1) and (x2,y2):
 
 .. image:: ./coordinate_system_and_shapes-res/drawing-06.svg
 	:align: center
@@ -105,11 +105,18 @@ Now let's look at what some code with shapes in more realistic setting, with win
 
 .. code:: python
 
-	size(200,200)
-	rectMode("CENTER")
-	rect((100,100),20,100)
-	ellipse((100,70),60,60)
-	ellipse((81,70),16,32) 
-	ellipse((119,70),16,32) 
-	line((90,150),(80,160))
-	line((110,150),(120,160))
+    from p5 import *
+
+    def setup():
+        size(200, 200)
+
+    def draw():
+        rect_mode(CENTER)
+        rect((100, 100), 20, 100)
+        ellipse((100, 70), 60, 60)
+        ellipse((81, 70), 16, 32)
+        ellipse((119, 70), 16, 32)
+        line((90, 150), (80, 160))
+        line((110, 150), (120, 160))
+    run()
+

@@ -10,15 +10,11 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 packages = ['p5']
 
-requires = [
-    'vispy',
-    'glfw',
-    'numpy',
-    'Pillow',
-    'triangle',
-]
+with open("requirements.txt", "r", encoding="UTF-8") as f:
+    requires = f.read().split("\n")
 
 meta_data = {}
+
 with open(os.path.join(here, 'p5', '__version__.py'), 'r', encoding='utf-8') as f:
     exec(f.read(), meta_data)
 
@@ -42,6 +38,7 @@ setup(
 
     setup_requires=['numpy'],
     install_requires=requires,
+    python_requires='>=3.6',
 
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -58,10 +55,9 @@ setup(
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
 
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
 
 )

@@ -20,12 +20,15 @@ import functools
 
 import builtins
 
+import io
+import re
+import urllib
+
 import numpy as np
 from PIL import Image
 from PIL import ImageFilter
 from PIL import ImageChops
 from PIL import ImageOps
-from vispy import gloo
 from . import p5
 
 from . import color
@@ -38,6 +41,7 @@ __all__ = ['PImage', 'image', 'load_image', 'image_mode',
 
 _image_mode = 'corner'
 
+
 def _ensure_loaded(func):
     """Reloads the image if required before calling the function.
 
@@ -49,6 +53,7 @@ def _ensure_loaded(func):
         return func(instance, *args, **kwargs)
     return rfunc
 
+
 @contextlib.contextmanager
 def _restore_color_mode():
     old_mode = color.color_parse_mode
@@ -58,6 +63,7 @@ def _restore_color_mode():
     yield
 
     color.color_mode(old_mode, *old_range)
+
 
 class PImage:
     """Image class for p5.
@@ -80,6 +86,7 @@ class PImage:
     :type fmt: str
 
     """
+
     def __init__(self, width, height, fmt='RGBA'):
         self._width = width
         self._height = height
@@ -114,7 +121,7 @@ class PImage:
     def height(self):
         """The height of the image
 
-        :rtype: int 
+        :rtype: int
         """
         return self._height
 
@@ -150,7 +157,9 @@ class PImage:
     def _texture(self):
         if self._img_texture is None:
             texdata = self._data.astype(np.float32) / 255.0
-            self._img_texture = gloo.Texture2D(texdata, interpolation='linear')
+            if builtins.current_renderer == 'vispy':
+                from vispy.gloo import Texture2D
+                self._img_texture = Texture2D(texdata, interpolation='linear')
         return self._img_texture
 
     @property
@@ -160,7 +169,8 @@ class PImage:
 
     def _load(self):
         if self._img is None:
-            self._img = Image.new(self._img_format, (self._width, self._height))
+            self._img = Image.new(
+                self._img_format, (self._width, self._height))
 
         width, height = self._img.size
         self._width = width
@@ -171,7 +181,7 @@ class PImage:
 
         self._channels = len(self._img.getbands())
 
-        self._img_data = data.reshape(height, width, self._channels)
+        self._img_data = data.reshape((height, width, self._channels))
         self._img_texture = None
         self._reload = False
 
@@ -274,7 +284,7 @@ class PImage:
             # don't unpack it.
             try:
                 point_color = color.Color(*point)
-            except TypeError as te:
+            except TypeError:
                 point_color = color.Color(point)
 
         # finally, write the color value to the image based on the
@@ -334,7 +344,7 @@ class PImage:
 
     def load_pixels(self):
         """Load internal pixel data for the image.
-        
+
         By default image data is only loaded lazily, i.e., right
         before displaying an image on the screen. Use this method to
         manually load the internal image data.
@@ -482,12 +492,25 @@ class PImage:
         """
         self._img.save(file_name)
 
-def image(img, location, size=None):
+
+def image(*args, size=None):
     """Draw an image to the display window.
 
     Images must be in the same folder as the sketch (or the image path
     should be explicitly mentioned). The color of an image may be
-    modified with the :meth:`p5.tint` function. 
+    modified with the :meth:`p5.tint` function.
+
+    :param x: x-coordinate of the image by default
+    :type float:
+
+    :param y: y-coordinate of the image by default
+    :type float:
+
+    :param w: width to display the image by default
+    :type float:
+
+    :param h: height to display the image by default
+    :type float:
 
     :param img: the image to be displayed.
     :type img: p5.Image
@@ -505,8 +528,23 @@ def image(img, location, size=None):
     :type size: tuple | list
 
     """
+    if len(args) == 2:
+        img, location = args
+    elif len(args) == 3:
+        img, location = args[0], args[1:]
+    elif len(args) == 5:
+        img, location, size = args[0], args[1:3], args[3:]
+    else:
+        raise ValueError("Unexpected number of arguments passed to image()")
+
     if size is None:
         size = img.size
+    # Add else statement below to resize the img._img first,
+    #   or it will take much time to render large image,
+    #   even when small size is specified to the image
+    else:
+        if size != img.size:
+            img.size = size
 
     lx, ly = location
     sx, sy = size
@@ -520,6 +558,7 @@ def image(img, location, size=None):
         sy = sy - ly
 
     p5.renderer.render_image(img, (lx, ly), (sx, sy))
+
 
 def image_mode(mode):
     """Modify the locaton from which the images are drawn.
@@ -554,17 +593,18 @@ def image_mode(mode):
         raise ValueError("Unknown image mode!")
     _image_mode = mode.lower()
 
+
 def load_image(filename):
-    """Load an image from the given filename.
+    """Load an image from the given filename (or URL).
 
     Loads an image into a variable of type PImage. Four types of
-    images may be loaded. 
+    images may be loaded.
 
     In most cases, load all images in setup() or outside the draw()
     call to preload them at the start of the program. Loading images
-    inside draw() will reduce the speed of a program. 
+    inside draw() will reduce the speed of a program.
 
-    :param filename: Filename (or path)of the given image. The
+    :param filename: Filename (or path or URL) of the given image. The
         file-extennsion is automatically inferred.
     :type filename: str
 
@@ -572,25 +612,30 @@ def load_image(filename):
     :rtype: :class:`p5.PImage`
 
     """
-    # todo: add support for loading images from URLs -- abhikpal
-    # (2018-08-14)
-    img = Image.open(filename)
+    if (re.match(r'\w+://', filename)):
+        with urllib.request.urlopen(filename) as url:
+            f = io.BytesIO(url.read())
+            img = Image.open(f)
+    else:
+        img = Image.open(filename)
     w, h = img.size
     pimg = PImage(w, h)
     pimg._img = img
+
     return pimg
+
 
 @contextlib.contextmanager
 def load_pixels():
     """Load a snapshot of the display window into the ``pixels`` Image.
-    
+
     This context manager loads data into the global ``pixels`` Image.
     Once the program execution leaves the context manager, all changes
     to the image are written to the main display.
 
     """
     pixels = PImage(builtins.width, builtins.height, 'RGB')
-    #sketch.renderer.flush_geometry()
+    # sketch.renderer.flush_geometry()
     pixel_data = p5.renderer.fbuffer.read(mode='color', alpha=False)
 
     pixels._img = Image.fromarray(pixel_data)
@@ -602,7 +647,14 @@ def load_pixels():
 
     with push_style():
         image_mode('corner')
-        p5.renderer.tint_enabled = False
+        p5.renderer.style.tint_enabled = False
         image(builtins.pixels, (0, 0))
 
     builtins.pixels = None
+
+
+def save_frame(filename=None):
+    if filename:
+        p5.sketch.screenshot(filename)
+    else:
+        p5.sketch.screenshot("Screen.png")

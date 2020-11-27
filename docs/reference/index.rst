@@ -16,3 +16,7 @@ Reference
    typography
    math
    svg
+   lights
+   materials
+   io
+   data

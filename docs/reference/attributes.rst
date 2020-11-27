@@ -1,9 +1,9 @@
-===========
-Environment
-===========
+==========
+Attributes
+==========
 
 .. automodule:: p5
-
+    :noindex:
 
 fill()
 -------

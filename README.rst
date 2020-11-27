@@ -1,6 +1,14 @@
 p5
 ===
 
+
+|License| |Version| |Slack|
+
+.. |License| image:: https://img.shields.io/pypi/l/p5?color=light-green
+.. |Version| image:: https://img.shields.io/pypi/v/p5?color=blue
+.. |Slack| image:: https://img.shields.io/badge/Slack-Join!-yellow  
+           :target: https://join.slack.com/t/p5py/shared_invite/zt-g9uo4vph-dUVltiE1ixvmjFTCyRlzpQ
+
 p5 is a Python library that provides high level drawing functionality
 to help you quickly create simulations and interactive art using
 Python. It combines the core ideas of `Processing
@@ -8,10 +16,13 @@ Python. It combines the core ideas of `Processing
 with Python's readability to make programming more accessible to
 beginners, educators, and artists.
 
+To report a bug / make a feature request use the `issues page <https://github.com/p5py/p5/issues>`_ in this repository. You can also use the `discourse platform
+<https://discourse.processing.org/c/p5py/27>`_  to ask/discuss anything related to p5py. 
+
 Example
 -------
 
-.. image:: https://github.com/p5py/p5/blob/develop/docs/_static/readme.gif
+.. image:: https://github.com/p5py/p5/raw/develop/docs/_static/readme.gif
 
 p5 programs are called "sketches" and are run as any other Python
 program. The sketch above, for instance, draws a circle at the mouse
@@ -53,6 +64,10 @@ Installation
 
 Take a look at the installation steps here in the `p5 installation page
 <http://p5.readthedocs.io/en/latest/install.html>`_
+
+Contributing
+------------
+We welcome contributions from anyone, even if you are new to open source. You can start by fixing the existing `issues <https://github.com/p5py/p5/issues>`_ in p5py. In case you need any help or support from the p5py development community, you can jon our `slack group <https://join.slack.com/t/p5py/shared_invite/zt-g9uo4vph-dUVltiE1ixvmjFTCyRlzpQ>`_. 
 
 License
 -------

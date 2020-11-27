@@ -3,6 +3,7 @@ Structure
 =========
 
 .. module:: p5
+    :noindex:
 
 setup()
 =======
@@ -43,3 +44,8 @@ push_style()
 ============
 
 .. autofunction:: push_style
+
+pop_style()
+============
+
+.. autofunction:: pop_style

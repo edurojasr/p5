@@ -23,11 +23,11 @@ import builtins
 from PIL import Image
 from vispy import app
 
-from ..core import p5
+from p5.core import p5
 
-from .events import KeyEvent
-from .events import MouseEvent
-from .events import handler_names
+from ..events import KeyEvent
+from ..events import MouseEvent
+from ..events import handler_names
 
 
 def _dummy(*args, **kwargs):
@@ -35,7 +35,8 @@ def _dummy(*args, **kwargs):
     """
     pass
 
-class Sketch(app.Canvas):
+
+class VispySketch(app.Canvas):
     """The main sketch instance.
 
     :param setup_method: Setup method for the sketch. This is run
@@ -55,6 +56,7 @@ class Sketch(app.Canvas):
     :type frame_rate: int
 
     """
+
     def __init__(self, setup_method, draw_method,
                  handlers=dict(), frame_rate=60):
         app.Canvas.__init__(
@@ -62,7 +64,7 @@ class Sketch(app.Canvas):
             title=builtins.title,
             size=(builtins.width, builtins.height),
             keys='interactive',
-            resizable=False,
+            resizable=True,
         )
 
         self.setup_method = setup_method
@@ -91,8 +93,8 @@ class Sketch(app.Canvas):
         builtins.frame_rate = round(self.fps, 2)
 
         with p5.renderer.draw_loop():
-            builtins.frame_count += 1
             if not self.setup_done:
+                builtins.frame_count += 1
                 self.setup_method()
                 self.setup_done = True
                 self.show(visible=True)
@@ -100,11 +102,17 @@ class Sketch(app.Canvas):
                     self.redraw = False
                 if self.looping is None:
                     self.looping = True
-            elif self.looping:
-                self.draw_method()
+
             elif self.redraw:
+                builtins.frame_count += 1
                 self.draw_method()
                 self.redraw = False
+            elif self.looping:
+                builtins.frame_count += 1
+                self.draw_method()
+                self.redraw = False
+            elif not self.looping:
+                pass
 
             while len(self.handler_queue) != 0:
                 function, event = self.handler_queue.pop(0)
@@ -145,6 +153,9 @@ class Sketch(app.Canvas):
         pass
 
     def on_resize(self, event):
+        builtins.width = int(self.size[0])
+        builtins.height = int(self.size[1])
+
         p5.renderer.reset_view()
         with p5.renderer.draw_loop():
             p5.renderer.clear()
@@ -160,7 +171,7 @@ class Sketch(app.Canvas):
     def on_key_release(self, event):
         kev = KeyEvent(event)
         self._enqueue_event('key_released', kev)
-        if not (event.text is ''):
+        if not (event.text == ''):
             self._enqueue_event('key_typed', kev)
 
     def on_mouse_press(self, event):

@@ -24,25 +24,14 @@ from .image import image_mode
 from .image import PImage
 from .structure import push_style
 from .transforms import push_matrix
-from .constants import *
+from .constants import SQUARE, PROJECT, ROUND, MITER, BEVEL
 
 from . import p5
 
-__all__ = [ 'background', 'clear', 'fill', 'no_fill',
-            'stroke', 'no_stroke', 'tint', 'no_tint' , 
-            'stroke_weight', 'stroke_cap', 'stroke_join']
+__all__ = ['background', 'clear', 'fill', 'no_fill',
+           'stroke', 'no_stroke', 'tint', 'no_tint',
+           'stroke_weight', 'stroke_cap', 'stroke_join']
 
-stroke_cap_codes = {
-    'PROJECT': 0,
-    'SQUARE': 1,
-    'ROUND': 2
-}
-
-stroke_join_codes = {
-    'MITER': 0,
-    'BEVEL': 1,
-    'ROUND': 2
-}
 
 def fill(*fill_args, **fill_kwargs):
     """Set the fill color of the shapes.
@@ -58,14 +47,16 @@ def fill(*fill_args, **fill_kwargs):
 
     """
     fill_color = Color(*fill_args, **fill_kwargs)
-    p5.renderer.fill_enabled = True
+    p5.renderer.style.fill_enabled = True
     p5.renderer.fill_image_enabled = False
-    p5.renderer.fill_color = fill_color.normalized
+    p5.renderer.style.fill_color = fill_color.normalized
     return fill_color
+
 
 def no_fill():
     """Disable filling geometry."""
-    p5.renderer.fill_enabled = False
+    p5.renderer.style.fill_enabled = False
+
 
 def stroke(*color_args, **color_kwargs):
     """Set the color used to draw lines around shapes
@@ -83,8 +74,9 @@ def stroke(*color_args, **color_kwargs):
     :rtype: Color
     """
     stroke_color = Color(*color_args, **color_kwargs)
-    p5.renderer.stroke_enabled = True
-    p5.renderer.stroke_color = stroke_color.normalized
+    p5.renderer.style.stroke_enabled = True
+    p5.renderer.style.stroke_color = stroke_color.normalized
+
 
 def stroke_weight(thickness):
     """Sets the width of the stroke used for lines, points, and the border around shapes. All widths are set in units of pixels.
@@ -95,37 +87,41 @@ def stroke_weight(thickness):
     """
     p5.renderer.stroke_weight = thickness
 
+
 def no_stroke():
     """Disable drawing the stroke around shapes."""
-    p5.renderer.stroke_enabled = False
+    p5.renderer.style.stroke_enabled = False
+
 
 def stroke_cap(c):
-    """Sets the style of line endings. The ends are SQUARE, 
+    """Sets the style of line endings. The ends are SQUARE,
     PROJECT, and ROUND. The default cap is ROUND.
 
     :param c: either 'SQUARE', 'PROJECT' or 'ROUND'
     :type c: string
 
     """
-    if c in stroke_cap_codes.keys():
-        p5.renderer.stroke_cap = stroke_cap_codes[c]
+    if c in [SQUARE, PROJECT, ROUND]:
+        p5.renderer.stroke_cap = c
     else:
         raise ValueError("Invalid Stroke Cap %s" % c)
 
+
 def stroke_join(j):
-    """Sets the style of the joints which connect line segments. 
-    These joints are either mitered, beveled, or rounded and 
-    specified with the corresponding parameters MITER, BEVEL, 
+    """Sets the style of the joints which connect line segments.
+    These joints are either mitered, beveled, or rounded and
+    specified with the corresponding parameters MITER, BEVEL,
     and ROUND. The default joint is MITER.
 
     :param weight: either 'MITER', 'BEVEL' or 'ROUND'
     :type j: string
 
     """
-    if j in stroke_join_codes.keys():
-        p5.renderer.stroke_join = stroke_join_codes[j]
+    if j in [MITER, BEVEL, ROUND]:
+        p5.renderer.stroke_join = j
     else:
         raise ValueError("Invalid Stroke Cap %s" % j)
+
 
 def tint(*color_args, **color_kwargs):
     """Set the tint color for the sketch.
@@ -143,12 +139,14 @@ def tint(*color_args, **color_kwargs):
     :rtype: Color
     """
     tint_color = Color(*color_args, **color_kwargs)
-    p5.renderer.tint_enabled = True
-    p5.renderer.tint_color = tint_color.normalized
+    p5.renderer.style.tint_enabled = True
+    p5.renderer.style.tint_color = tint_color.normalized
+
 
 def no_tint():
     """Disable tinting of images."""
-    p5.renderer.tint_enabled = False
+    p5.renderer.style.tint_enabled = False
+
 
 def background(*args, **kwargs):
     """Set the background color for the p5.renderer.
@@ -194,11 +192,12 @@ def background(*args, **kwargs):
         no_stroke()
 
         with push_matrix():
-            p5.renderer.background_color = background_color.normalized
+            p5.renderer.style.background_color = background_color.normalized
             p5.renderer.clear()
+
 
 def clear():
     """
-    Clears the pixels within a buffer. 
+    Clears the pixels within a buffer.
     """
     p5.renderer.clear()

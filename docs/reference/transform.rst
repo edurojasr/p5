@@ -2,11 +2,17 @@ Transform
 =========
 
 .. automodule:: p5
+    :noindex:
 
 push_matrix()
 -------------
 
 .. autofunction:: push_matrix()
+
+pop_matrix()
+-------------
+
+.. autofunction:: pop_matrix()
 
 print_matrix()
 --------------
@@ -66,10 +72,14 @@ translate()
 camera()
 ---------
 
+.. function:: camera(position_x, position_y, position_z, target_x, target_y, target_z, up_x, up_y, up_z)
+    :noindex:
+.. function:: camera(position, target_position, up_vector)
+    :noindex:
 .. autofunction:: camera()
 
 perspective()
----------
+-------------
 
 .. autofunction:: perspective()
 

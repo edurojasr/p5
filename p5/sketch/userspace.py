@@ -22,20 +22,13 @@ import __main__
 import math
 import numpy as np
 import builtins
-import datetime
+import time
 from functools import wraps
 
-from vispy import app
-
-from .base import Sketch
 from .events import handler_names
 
 from ..core import p5
 from ..pmath import matrix
-
-from ..core.constants import *
-from .renderer2d import Renderer2D
-from .renderer3d import Renderer3D
 
 __all__ = ['no_loop', 'loop', 'redraw', 'size', 'title', 'no_cursor',
            'cursor', 'exit', 'draw', 'setup', 'run', 'save_frame', 'save']
@@ -62,6 +55,7 @@ builtins.key_is_pressed = False
 
 builtins.pixels = None
 builtins.start_time = 0
+builtins.current_renderer = None
 
 def _fix_interface(func):
     """Make sure that `func` takes at least one argument as input.
@@ -69,6 +63,7 @@ def _fix_interface(func):
     :returns: a new function that accepts arguments.
     :rtype: func
     """
+
     @wraps(func)
     def fixed_func(*args, **kwargs):
         return_value = func()
@@ -78,6 +73,7 @@ def _fix_interface(func):
         return fixed_func
     else:
         return func
+
 
 def draw():
     """Continuously execute code defined inside.
@@ -89,6 +85,7 @@ def draw():
     """
     pass
 
+
 def setup():
     """Called to setup initial sketch options.
 
@@ -98,7 +95,9 @@ def setup():
     """
     pass
 
-def run(sketch_setup=None, sketch_draw=None, frame_rate=60, mode="P2D"):
+
+def run(sketch_setup=None, sketch_draw=None,
+        frame_rate=60, mode="P2D", renderer="vispy"):
     """Run a sketch.
 
     if no `sketch_setup` and `sketch_draw` are specified, p5 automatically
@@ -138,28 +137,39 @@ def run(sketch_setup=None, sketch_draw=None, frame_rate=60, mode="P2D"):
             hfunc = getattr(__main__, handler)
             handlers[handler] = _fix_interface(hfunc)
 
-    if mode == "P2D":
-        p5.renderer = Renderer2D()
-        p5.mode = 'P2D'
-    elif mode == "P3D":
-        p5.mode = 'P3D'
-        p5.renderer = Renderer3D()
+    if renderer == "vispy":
+        import vispy
+        vispy.use('glfw')
+        from p5.sketch.Vispy2DRenderer.base import VispySketch
+        from vispy import app
+        builtins.current_renderer = "vispy"
+
+        if mode == "P2D":
+            p5.mode = 'P2D'
+            from p5.sketch.Vispy2DRenderer.renderer2d import VispyRenderer2D
+            p5.renderer = VispyRenderer2D()
+        elif mode == "P3D":
+            p5.mode = 'P3D'
+            from p5.sketch.Vispy3DRenderer.renderer3d import Renderer3D
+            p5.renderer = Renderer3D()
+        else:
+            ValueError("Invalid Mode %s" % mode)
+
+        p5.sketch = VispySketch(setup_method, draw_method, handlers, frame_rate)
+        physical_width, physical_height = p5.sketch.physical_size
+        width, height = p5.sketch.size
+
+        builtins.pixel_x_density = physical_width // width
+        builtins.pixel_y_density = physical_height // height
+        builtins.start_time = time.perf_counter()
+
+        p5.sketch.timer.start()
+
+        app.run()
+        exit()
     else:
-        raise ValueError("Invalid Mode %s" % mode)
+        raise NotImplementedError("Invalid Renderer %s" % renderer)
 
-    p5.sketch = Sketch(setup_method, draw_method, handlers, frame_rate)
-
-    physical_width, physical_height = p5.sketch.physical_size
-    width, height = p5.sketch.size
-
-    builtins.pixel_x_density = physical_width // width
-    builtins.pixel_y_density = physical_height // height
-    builtins.start_time = datetime.datetime.now()
-
-    p5.sketch.timer.start()
-
-    app.run()
-    exit()
 
 def title(new_title):
     """Set the title of the p5 window.
@@ -170,6 +180,7 @@ def title(new_title):
     """
     builtins.title = new_title
     p5.sketch.title = new_title
+
 
 def size(width, height):
     """Resize the sketch window.
@@ -187,10 +198,13 @@ def size(width, height):
 
     # update the look at matrix coordinates according to sketch size
     if p5.mode == "P3D":
+        eye = np.array((0, 0, height / math.tan(math.pi / 6)))
         p5.renderer.lookat_matrix = matrix.look_at(
-        np.array([0, 0, height/math.tan(math.pi/6)]), 
-        np.array([0, 0, 0]), 
-        np.array([0, 1, 0]))
+            eye,
+            np.array((0, 0, 0)),
+            np.array((0, 1, 0)))
+        p5.renderer.camera_pos = eye
+
 
 def no_loop():
     """Stop draw() from being continuously called.
@@ -205,6 +219,7 @@ def no_loop():
     p5.sketch.looping = False
     p5.sketch.redraw = True
 
+
 def loop():
     """Make sure `draw()` is being called continuously.
 
@@ -213,6 +228,7 @@ def loop():
 
     """
     p5.sketch.looping = True
+
 
 def redraw():
     """Call `draw()` once.
@@ -223,6 +239,7 @@ def redraw():
     """
     if not p5.sketch.looping:
         p5.sketch.redraw = True
+
 
 def exit(*args, **kwargs):
     """Exit the sketch.
@@ -238,15 +255,19 @@ def exit(*args, **kwargs):
         `exit()` function.
     """
     if not (p5.sketch is None):
-        p5.sketch.show(visible=False)
-        app.quit()
+        if builtins.current_renderer == "vispy":
+            from vispy import app
+            p5.sketch.show(visible=False)
+            app.quit()
     p5.exit(*args, **kwargs)
+
 
 def no_cursor():
     """Hide the mouse cursor.
     """
     # window.set_mouse_visible(False)
     raise NotImplementedError
+
 
 def cursor(cursor_type='ARROW'):
     """Set the cursor to the specified type.
@@ -271,8 +292,9 @@ def cursor(cursor_type='ARROW'):
     # window.set_mouse_cursor(cursor)
     raise NotImplementedError
 
+
 def save(filename='screen.png'):
-    """Save an image from the display window. 
+    """Save an image from the display window.
 
     Saves an image from the display window. Append a file extension to
     the name of the file, to indicate the file format to be used.If no
@@ -293,6 +315,7 @@ def save(filename='screen.png'):
     # --abhikpal (2018-08-14)
     p5.sketch.screenshot(filename)
 
+
 def save_frame(filename="screen.png"):
     """Save a numbered sequence of images whenever the function is run.
 
@@ -300,7 +323,7 @@ def save_frame(filename="screen.png"):
     function is run. To save an image that is identical to the display
     window, run the function at the end of :meth:`p5.draw` or within
     mouse and key events such as :meth:`p5.mouse_pressed` and
-    :meth:`p5.key_pressed`. 
+    :meth:`p5.key_pressed`.
 
     If save_frame() is used without parameters, it will save files as
     screen-0000.png, screen-0001.png, and so on. Append a file
